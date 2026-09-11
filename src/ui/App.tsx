@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, BellOff, RefreshCw, Search, Send, X } from "lucide-react";
 import { timelineService } from "../services/timelineService";
+import { loadAppSettings, saveAppSettings } from "../services/appSettingsStorage";
 import { notifyNewPosts, sendTestNotification } from "../services/notificationService";
 import type { TimelinePost, TimelineTab } from "../types/timeline";
 import { LoginPanel } from "./LoginPanel";
 import { PostDetail } from "./PostDetail";
 import { TimelineTable } from "./TimelineTable";
 
-const buildLabel = "native-notify-1";
+const buildLabel = "read-settings-1";
 const initialTabs: TimelineTab[] = [{ id: "home", title: "Home", type: "home", notify: true }];
+const initialSettings = loadAppSettings();
 
 const refreshIntervals = [
   { label: "自動更新なし", value: 0 },
@@ -20,8 +22,8 @@ const refreshIntervals = [
 ];
 
 export function App() {
-  const [tabs, setTabs] = useState<TimelineTab[]>(initialTabs);
-  const [activeTabId, setActiveTabId] = useState("home");
+  const [tabs, setTabs] = useState<TimelineTab[]>(() => normalizeTabs(initialSettings.tabs));
+  const [activeTabId, setActiveTabId] = useState(() => initialSettings.activeTabId ?? "home");
   const [postsByTab, setPostsByTab] = useState<Record<string, TimelinePost[]>>({});
   const [visiblePosts, setVisiblePosts] = useState<TimelinePost[]>([]);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
@@ -31,13 +33,16 @@ export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(timelineService.isAuthenticated);
   const [composerText, setComposerText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [refreshIntervalSeconds, setRefreshIntervalSeconds] = useState(0);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [refreshIntervalSeconds, setRefreshIntervalSeconds] = useState(initialSettings.refreshIntervalSeconds ?? 0);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(initialSettings.notificationsEnabled ?? true);
+  const [showHomeReplies, setShowHomeReplies] = useState(initialSettings.showHomeReplies ?? false);
+  const [readPostIds, setReadPostIds] = useState<Set<string>>(() => new Set(initialSettings.readPostIds ?? []));
   const knownPostIdsByTab = useRef(new Map<string, Set<string>>());
   const hasCompletedInitialLoadByTab = useRef(new Set<string>());
   const requestSeqByTab = useRef(new Map<string, number>());
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef(activeTabId);
+  const showHomeRepliesRef = useRef(showHomeReplies);
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId);
 
@@ -45,6 +50,19 @@ export function App() {
     () => visiblePosts.find((post) => post.id === selectedPostId) ?? visiblePosts[0],
     [visiblePosts, selectedPostId],
   );
+  const unreadPostIds = useMemo(() => {
+    const visibleIds = new Set(visiblePosts.map((post) => post.id));
+    return new Set([...visibleIds].filter((id) => !readPostIds.has(id)));
+  }, [readPostIds, visiblePosts]);
+  const unreadCountsByTab = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const tab of tabs) {
+      counts[tab.id] = getDisplayPosts(tab, postsByTab[tab.id] ?? [], showHomeReplies).filter(
+        (post) => !readPostIds.has(post.id),
+      ).length;
+    }
+    return counts;
+  }, [postsByTab, readPostIds, showHomeReplies, tabs]);
 
   async function refreshTab(tabId: string, options: { silent?: boolean } = {}) {
     const tab = tabsRef.current.find((currentTab) => currentTab.id === tabId);
@@ -66,7 +84,7 @@ export function App() {
       const newPosts = detectNewPosts(tab.id, nextPosts);
       setPostsByTab((current) => ({ ...current, [tab.id]: nextPosts }));
       if (tab.id === activeTabIdRef.current) {
-        const displayPosts = getDisplayPosts(tab, nextPosts);
+        const displayPosts = getDisplayPosts(tab, nextPosts, showHomeRepliesRef.current);
         setVisiblePosts(displayPosts);
         setSelectedPostId((current) => current ?? displayPosts[0]?.id ?? null);
         setStatus(`${tab.title}: ${displayPosts.length}件を表示中`);
@@ -96,7 +114,7 @@ export function App() {
   async function fetchTabPosts(tab: TimelineTab): Promise<TimelinePost[]> {
     if (tab.type === "search") {
       const searchedPosts = await timelineService.searchPosts(tab.query ?? "");
-      return getDisplayPosts(tab, searchedPosts);
+      return getDisplayPosts(tab, searchedPosts, showHomeRepliesRef.current);
     }
     return timelineService.getHomeTimeline();
   }
@@ -148,7 +166,7 @@ export function App() {
     setActiveTabId(tabId);
     setSelectedPostId(null);
     if (tab) {
-      setVisiblePosts(getDisplayPosts(tab, postsByTab[tabId] ?? []));
+      setVisiblePosts(getDisplayPosts(tab, postsByTab[tabId] ?? [], showHomeRepliesRef.current));
     } else {
       setVisiblePosts([]);
     }
@@ -161,6 +179,25 @@ export function App() {
     );
     tabsRef.current = nextTabs;
     setTabs(nextTabs);
+  }
+
+  function handleSelectPost(postId: string) {
+    setSelectedPostId(postId);
+    markPostAsRead(postId);
+  }
+
+  function markPostAsRead(postId: string | undefined) {
+    if (!postId) {
+      return;
+    }
+    setReadPostIds((current) => {
+      if (current.has(postId)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(postId);
+      return next;
+    });
   }
 
   async function submitPost() {
@@ -193,7 +230,33 @@ export function App() {
   }, [activeTabId]);
 
   useEffect(() => {
-    void refreshTab("home");
+    showHomeRepliesRef.current = showHomeReplies;
+    const tab = tabsRef.current.find((currentTab) => currentTab.id === activeTabIdRef.current);
+    if (tab) {
+      setVisiblePosts(getDisplayPosts(tab, postsByTab[tab.id] ?? [], showHomeReplies));
+    }
+  }, [activeTabId, postsByTab, showHomeReplies]);
+
+  useEffect(() => {
+    markPostAsRead(selectedPost?.id);
+  }, [selectedPost?.id]);
+
+  useEffect(() => {
+    saveAppSettings({
+      tabs,
+      activeTabId,
+      refreshIntervalSeconds,
+      notificationsEnabled,
+      showHomeReplies,
+      readPostIds: [...readPostIds].slice(-2500),
+    });
+  }, [activeTabId, notificationsEnabled, readPostIds, refreshIntervalSeconds, showHomeReplies, tabs]);
+
+  useEffect(() => {
+    const initialTabId = tabsRef.current.some((tab) => tab.id === activeTabIdRef.current) ? activeTabIdRef.current : "home";
+    activeTabIdRef.current = initialTabId;
+    setActiveTabId(initialTabId);
+    void refreshTab(initialTabId);
   }, []);
 
   useEffect(() => {
@@ -264,6 +327,14 @@ export function App() {
             ))}
           </select>
         </label>
+        <label className="interval-control" title="Homeタイムラインにフォロー中アカウントのリプライを表示">
+          <input
+            type="checkbox"
+            checked={showHomeReplies}
+            onChange={(event) => setShowHomeReplies(event.target.checked)}
+          />
+          リプライ表示
+        </label>
         <button
           className="toolbar-button icon-only"
           onClick={() => setNotificationsEnabled((value) => !value)}
@@ -299,7 +370,8 @@ export function App() {
             key={activeTabId}
             posts={visiblePosts}
             selectedPostId={selectedPost?.id}
-            onSelectPost={setSelectedPostId}
+            unreadPostIds={unreadPostIds}
+            onSelectPost={handleSelectPost}
           />
         </section>
 
@@ -312,6 +384,9 @@ export function App() {
               onClick={() => switchTab(tab.id)}
             >
               <span className="tab-title">{tab.title}</span>
+              {(unreadCountsByTab[tab.id] ?? 0) > 0 && (
+                <span className="tab-unread-count">{unreadCountsByTab[tab.id]}</span>
+              )}
               <span
                 className={tab.notify ? "tab-notify enabled" : "tab-notify"}
                 role="button"
@@ -390,10 +465,11 @@ export function App() {
   );
 }
 
-function getDisplayPosts(tab: TimelineTab, posts: TimelinePost[]): TimelinePost[] {
+function getDisplayPosts(tab: TimelineTab, posts: TimelinePost[], showHomeReplies: boolean): TimelinePost[] {
   if (tab.type !== "search") {
     return posts
       .filter((post) => !post.originTabId || post.originTabId === tab.id)
+      .filter((post) => showHomeReplies || tab.type !== "home" || post.kind !== "reply")
       .map((post) => ({ ...post, source: "Home" }));
   }
 
@@ -424,4 +500,13 @@ function tagPostsForTab(tab: TimelineTab, posts: TimelinePost[]): TimelinePost[]
 
 function normalizeSearchText(value: string): string {
   return value.trim().toLocaleLowerCase();
+}
+
+function normalizeTabs(tabs: TimelineTab[] | undefined): TimelineTab[] {
+  const nextTabs = tabs && tabs.length > 0 ? tabs : initialTabs;
+  const hasHome = nextTabs.some((tab) => tab.id === "home");
+  return (hasHome ? nextTabs : [...initialTabs, ...nextTabs]).map((tab) => ({
+    ...tab,
+    notify: tab.notify ?? true,
+  }));
 }

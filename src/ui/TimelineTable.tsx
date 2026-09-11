@@ -3,10 +3,11 @@ import type { TimelinePost } from "../types/timeline";
 interface TimelineTableProps {
   posts: TimelinePost[];
   selectedPostId?: string;
+  unreadPostIds: Set<string>;
   onSelectPost: (id: string) => void;
 }
 
-export function TimelineTable({ posts, selectedPostId, onSelectPost }: TimelineTableProps) {
+export function TimelineTable({ posts, selectedPostId, unreadPostIds, onSelectPost }: TimelineTableProps) {
   return (
     <table className="timeline-table">
       <colgroup>
@@ -31,7 +32,7 @@ export function TimelineTable({ posts, selectedPostId, onSelectPost }: TimelineT
         {posts.map((post) => (
           <tr
             key={post.id}
-            className={post.id === selectedPostId ? "selected" : undefined}
+            className={getRowClassName(post.id, selectedPostId, unreadPostIds)}
             onClick={() => onSelectPost(post.id)}
           >
             <td>
@@ -54,6 +55,17 @@ export function TimelineTable({ posts, selectedPostId, onSelectPost }: TimelineT
       </tbody>
     </table>
   );
+}
+
+function getRowClassName(postId: string, selectedPostId: string | undefined, unreadPostIds: Set<string>): string | undefined {
+  const classes = [];
+  if (postId === selectedPostId) {
+    classes.push("selected");
+  }
+  if (unreadPostIds.has(postId)) {
+    classes.push("unread");
+  }
+  return classes.length > 0 ? classes.join(" ") : undefined;
 }
 
 function formatDate(value: string): string {

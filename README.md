@@ -12,6 +12,9 @@ This is not an official Bluesky client.
 - Closable search tabs
 - Per-tab notification toggle
 - Automatic refresh interval selector
+- Persisted tabs, refresh interval, notification toggles, and reply visibility settings
+- Read/unread timeline state with unread rows shown in bold
+- Home reply visibility toggle, disabled by default
 - Windows toast notifications for newly detected posts
 - OpenTween-style upper timeline table and lower detail pane
 - Post detail view with images, quote text, and counters
@@ -24,7 +27,7 @@ This is not an official Bluesky client.
 - Lists
 - Custom feeds
 - Advanced keyword/search condition tabs
-- Replies, likes, reposts, and quote posts
+- Replies, likes, reposts, and quote posts as actions
 - System tray
 - Encrypted credential storage through Windows Credential Manager or a similar native store
 
