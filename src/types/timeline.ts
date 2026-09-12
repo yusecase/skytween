@@ -1,4 +1,4 @@
-export type PostKind = "post" | "reply" | "repost" | "quote";
+export type PostKind = "post" | "reply" | "repost" | "quote" | "notification";
 
 export interface TimelineImage {
   thumb: string;
@@ -20,6 +20,11 @@ export interface TimelinePost {
   originTabId?: string;
   replyTo?: string;
   quoteText?: string;
+  notificationReason?: string;
+  notificationReasonSubject?: string;
+  canInteract: boolean;
+  likeUri?: string;
+  repostUri?: string;
   likeCount: number;
   repostCount: number;
   replyCount: number;

@@ -1,6 +1,12 @@
-import { Agent, CredentialSession, type AppBskyFeedDefs, type AtpSessionData } from "@atproto/api";
+import {
+  Agent,
+  CredentialSession,
+  type AppBskyFeedDefs,
+  type AppBskyNotificationListNotifications,
+  type AtpSessionData,
+} from "@atproto/api";
 import { loadSession, saveSession } from "./sessionStorage";
-import type { TimelineImage, TimelinePost } from "../types/timeline";
+import type { PostKind, TimelineImage, TimelinePost } from "../types/timeline";
 
 export interface LoginCredentials {
   identifier: string;
@@ -72,6 +78,15 @@ export class BskyClient {
     }));
   }
 
+  async getNotifications(limit = 50): Promise<TimelinePost[]> {
+    if (!this.agent) {
+      return [];
+    }
+
+    const response = await this.agent.listNotifications({ limit });
+    return response.data.notifications.map(mapNotification);
+  }
+
   async createPost(text: string): Promise<void> {
     if (!this.agent) {
       throw new Error("投稿するにはログインしてください");
@@ -86,6 +101,56 @@ export class BskyClient {
       text: trimmed,
       langs: ["ja"],
     });
+  }
+
+  async toggleLike(post: TimelinePost): Promise<TimelinePost> {
+    if (!this.agent) {
+      throw new Error("いいねするにはログインしてください");
+    }
+    if (!post.canInteract) {
+      throw new Error("この行はいいね対象の投稿ではありません");
+    }
+
+    if (post.likeUri) {
+      await this.agent.deleteLike(post.likeUri);
+      return {
+        ...post,
+        likeUri: undefined,
+        likeCount: Math.max(0, post.likeCount - 1),
+      };
+    }
+
+    const like = await this.agent.like(post.uri, post.cid);
+    return {
+      ...post,
+      likeUri: like.uri,
+      likeCount: post.likeCount + 1,
+    };
+  }
+
+  async toggleRepost(post: TimelinePost): Promise<TimelinePost> {
+    if (!this.agent) {
+      throw new Error("リポストするにはログインしてください");
+    }
+    if (!post.canInteract) {
+      throw new Error("この行はリポスト対象の投稿ではありません");
+    }
+
+    if (post.repostUri) {
+      await this.agent.deleteRepost(post.repostUri);
+      return {
+        ...post,
+        repostUri: undefined,
+        repostCount: Math.max(0, post.repostCount - 1),
+      };
+    }
+
+    const repost = await this.agent.repost(post.uri, post.cid);
+    return {
+      ...post,
+      repostUri: repost.uri,
+      repostCount: post.repostCount + 1,
+    };
   }
 
   private createCredentialSession(service: URL): CredentialSession {
@@ -119,10 +184,35 @@ function mapFeedViewPost(
     source: "Home",
     replyTo: getPostUri(reply?.parent),
     quoteText: getQuoteText(post),
+    canInteract: true,
+    likeUri: post.viewer?.like,
+    repostUri: post.viewer?.repost,
     likeCount: post.likeCount ?? 0,
     repostCount: post.repostCount ?? 0,
     replyCount: post.replyCount ?? 0,
     images: getImages(post),
+  };
+}
+
+function mapNotification(notification: AppBskyNotificationListNotifications.Notification): TimelinePost {
+  return {
+    id: `notification:${notification.uri}:${notification.indexedAt}`,
+    uri: notification.uri,
+    cid: notification.cid,
+    authorDisplayName: notification.author.displayName || notification.author.handle,
+    authorHandle: notification.author.handle,
+    authorAvatar: notification.author.avatar,
+    text: getNotificationText(notification),
+    indexedAt: notification.indexedAt,
+    kind: getNotificationKind(notification.reason),
+    source: "Notifications",
+    notificationReason: notification.reason,
+    notificationReasonSubject: notification.reasonSubject,
+    canInteract: isPostNotification(notification),
+    likeCount: 0,
+    repostCount: 0,
+    replyCount: 0,
+    images: [],
   };
 }
 
@@ -131,8 +221,65 @@ function getPostUri(post?: AppBskyFeedDefs.PostView | AppBskyFeedDefs.NotFoundPo
 }
 
 function getPostText(post: AppBskyFeedDefs.PostView): string {
-  const record = post.record as { text?: unknown };
+  return getRecordText(post.record);
+}
+
+function getRecordText(record: { [_ in string]: unknown }): string {
   return typeof record.text === "string" ? record.text : "";
+}
+
+function getNotificationText(notification: AppBskyNotificationListNotifications.Notification): string {
+  const label = getNotificationReasonLabel(notification.reason);
+  const text = getRecordText(notification.record);
+  if (text) {
+    return `${label}: ${text}`;
+  }
+  if (notification.reasonSubject) {
+    return `${label}: ${notification.reasonSubject}`;
+  }
+  return label;
+}
+
+function getNotificationKind(reason: string): PostKind {
+  if (reason === "reply" || reason === "mention") {
+    return "reply";
+  }
+  if (reason === "quote") {
+    return "quote";
+  }
+  if (reason === "repost" || reason === "repost-via-repost") {
+    return "repost";
+  }
+  return "notification";
+}
+
+function isPostNotification(notification: AppBskyNotificationListNotifications.Notification): boolean {
+  return ["reply", "mention", "quote", "subscribed-post"].includes(notification.reason);
+}
+
+function getNotificationReasonLabel(reason: string): string {
+  switch (reason) {
+    case "like":
+      return "いいね";
+    case "repost":
+      return "リポスト";
+    case "follow":
+      return "フォロー";
+    case "mention":
+      return "メンション";
+    case "reply":
+      return "返信";
+    case "quote":
+      return "引用";
+    case "like-via-repost":
+      return "リポスト経由のいいね";
+    case "repost-via-repost":
+      return "リポスト経由のリポスト";
+    case "subscribed-post":
+      return "購読投稿";
+    default:
+      return reason;
+  }
 }
 
 function getQuoteText(post: AppBskyFeedDefs.PostView): string | undefined {
@@ -163,6 +310,7 @@ const sampleTimeline: TimelinePost[] = [
     indexedAt: now.toISOString(),
     kind: "post",
     source: "Home",
+    canInteract: false,
     likeCount: 12,
     repostCount: 3,
     replyCount: 2,
@@ -179,6 +327,7 @@ const sampleTimeline: TimelinePost[] = [
     kind: "reply",
     source: "Home",
     replyTo: "sample:1",
+    canInteract: false,
     likeCount: 5,
     repostCount: 1,
     replyCount: 0,

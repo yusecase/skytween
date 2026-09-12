@@ -8,6 +8,7 @@ This is not an official Bluesky client.
 ## Features
 
 - Home timeline
+- Notifications tab for mentions, replies, likes, reposts, follows, quotes, and related account activity
 - Public search tabs
 - Closable search tabs
 - Per-tab notification toggle
@@ -19,15 +20,15 @@ This is not an official Bluesky client.
 - OpenTween-style upper timeline table and lower detail pane
 - Post detail view with images, quote text, and counters
 - Basic text posting
+- Like and repost actions for timeline posts
 - Saved AT Protocol session resume
 
 ## Not Yet Implemented
 
-- Notifications timeline
 - Lists
 - Custom feeds
 - Advanced keyword/search condition tabs
-- Replies, likes, reposts, and quote posts as actions
+- Replies and quote posts as actions
 - System tray
 - Encrypted credential storage through Windows Credential Manager or a similar native store
 

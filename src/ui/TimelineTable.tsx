@@ -44,7 +44,7 @@ export function TimelineTable({ posts, selectedPostId, unreadPostIds, onSelectPo
             </td>
             <td className="clip">{post.authorDisplayName}</td>
             <td className="post-text">
-              <span className={`kind kind-${post.kind}`}>{post.kind === "reply" ? "返信" : "投稿"}</span>
+              <span className={`kind kind-${post.kind}`}>{getKindLabel(post.kind)}</span>
               {post.text}
             </td>
             <td>{formatDate(post.indexedAt)}</td>
@@ -55,6 +55,21 @@ export function TimelineTable({ posts, selectedPostId, unreadPostIds, onSelectPo
       </tbody>
     </table>
   );
+}
+
+function getKindLabel(kind: TimelinePost["kind"]): string {
+  switch (kind) {
+    case "reply":
+      return "返信";
+    case "repost":
+      return "RP";
+    case "quote":
+      return "引用";
+    case "notification":
+      return "通知";
+    default:
+      return "投稿";
+  }
 }
 
 function getRowClassName(postId: string, selectedPostId: string | undefined, unreadPostIds: Set<string>): string | undefined {

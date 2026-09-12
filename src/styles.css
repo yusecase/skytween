@@ -407,6 +407,36 @@ textarea {
   color: #46515e;
 }
 
+.post-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.post-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 2px 9px;
+  border: 1px solid #9ca7b3;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #17202a;
+  cursor: pointer;
+}
+
+.post-action.active {
+  border-color: #2d6a9f;
+  background: #e8f3ff;
+  color: #17446e;
+}
+
+.post-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .empty-detail {
   padding: 12px;
   color: #66717e;

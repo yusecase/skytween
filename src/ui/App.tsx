@@ -8,8 +8,11 @@ import { LoginPanel } from "./LoginPanel";
 import { PostDetail } from "./PostDetail";
 import { TimelineTable } from "./TimelineTable";
 
-const buildLabel = "read-settings-1";
-const initialTabs: TimelineTab[] = [{ id: "home", title: "Home", type: "home", notify: true }];
+const buildLabel = "notify-actions-1";
+const initialTabs: TimelineTab[] = [
+  { id: "home", title: "Home", type: "home", notify: true },
+  { id: "notifications", title: "Notifications", type: "notifications", notify: true },
+];
 const initialSettings = loadAppSettings();
 
 const refreshIntervals = [
@@ -30,6 +33,7 @@ export function App() {
   const [status, setStatus] = useState("Ready");
   const [isLoading, setIsLoading] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
+  const [actionPostId, setActionPostId] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(timelineService.isAuthenticated);
   const [composerText, setComposerText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -116,6 +120,9 @@ export function App() {
       const searchedPosts = await timelineService.searchPosts(tab.query ?? "");
       return getDisplayPosts(tab, searchedPosts, showHomeRepliesRef.current);
     }
+    if (tab.type === "notifications") {
+      return timelineService.getNotifications();
+    }
     return timelineService.getHomeTimeline();
   }
 
@@ -140,7 +147,7 @@ export function App() {
   function closeTab(tabId: string) {
     const index = tabs.findIndex((tab) => tab.id === tabId);
     const tab = tabs[index];
-    if (!tab || tab.type === "home") {
+    if (!tab || tab.type === "home" || tab.type === "notifications") {
       return;
     }
 
@@ -219,6 +226,45 @@ export function App() {
     } finally {
       setIsPosting(false);
     }
+  }
+
+  async function toggleLike(post: TimelinePost) {
+    setActionPostId(post.id);
+    setStatus(post.likeUri ? "いいねを解除中..." : "いいね中...");
+    try {
+      const updatedPost = await timelineService.toggleLike(post);
+      updatePostEverywhere(updatedPost);
+      setStatus(updatedPost.likeUri ? "いいねしました" : "いいねを解除しました");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "いいね操作に失敗しました");
+    } finally {
+      setActionPostId(null);
+    }
+  }
+
+  async function toggleRepost(post: TimelinePost) {
+    setActionPostId(post.id);
+    setStatus(post.repostUri ? "リポストを解除中..." : "リポスト中...");
+    try {
+      const updatedPost = await timelineService.toggleRepost(post);
+      updatePostEverywhere(updatedPost);
+      setStatus(updatedPost.repostUri ? "リポストしました" : "リポストを解除しました");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "リポスト操作に失敗しました");
+    } finally {
+      setActionPostId(null);
+    }
+  }
+
+  function updatePostEverywhere(updatedPost: TimelinePost) {
+    setPostsByTab((current) => {
+      const next: Record<string, TimelinePost[]> = {};
+      for (const [tabId, posts] of Object.entries(current)) {
+        next[tabId] = posts.map((post) => (post.id === updatedPost.id || post.uri === updatedPost.uri ? updatedPost : post));
+      }
+      return next;
+    });
+    setVisiblePosts((current) => current.map((post) => (post.id === updatedPost.id || post.uri === updatedPost.uri ? updatedPost : post)));
   }
 
   useEffect(() => {
@@ -438,7 +484,12 @@ export function App() {
         </nav>
 
         <section className="detail-pane" aria-label="選択中投稿の詳細">
-          <PostDetail post={selectedPost} />
+          <PostDetail
+            post={selectedPost}
+            isActionBusy={actionPostId === selectedPost?.id}
+            onToggleLike={(post) => void toggleLike(post)}
+            onToggleRepost={(post) => void toggleRepost(post)}
+          />
         </section>
       </main>
 
@@ -470,7 +521,7 @@ function getDisplayPosts(tab: TimelineTab, posts: TimelinePost[], showHomeReplie
     return posts
       .filter((post) => !post.originTabId || post.originTabId === tab.id)
       .filter((post) => showHomeReplies || tab.type !== "home" || post.kind !== "reply")
-      .map((post) => ({ ...post, source: "Home" }));
+      .map((post) => ({ ...post, source: tab.type === "notifications" ? "Notifications" : "Home" }));
   }
 
   const query = normalizeSearchText(tab.query ?? "");
@@ -493,7 +544,7 @@ function getDisplayPosts(tab: TimelineTab, posts: TimelinePost[], showHomeReplie
 function tagPostsForTab(tab: TimelineTab, posts: TimelinePost[]): TimelinePost[] {
   return posts.map((post) => ({
     ...post,
-    source: tab.type === "search" ? "Search" : "Home",
+    source: tab.type === "search" ? "Search" : tab.type === "notifications" ? "Notifications" : "Home",
     originTabId: tab.id,
   }));
 }
@@ -505,7 +556,10 @@ function normalizeSearchText(value: string): string {
 function normalizeTabs(tabs: TimelineTab[] | undefined): TimelineTab[] {
   const nextTabs = tabs && tabs.length > 0 ? tabs : initialTabs;
   const hasHome = nextTabs.some((tab) => tab.id === "home");
-  return (hasHome ? nextTabs : [...initialTabs, ...nextTabs]).map((tab) => ({
+  const withHome = hasHome ? nextTabs : [initialTabs[0], ...nextTabs];
+  const hasNotifications = withHome.some((tab) => tab.id === "notifications");
+  const withFixedTabs = hasNotifications ? withHome : [...withHome, initialTabs[1]];
+  return withFixedTabs.map((tab) => ({
     ...tab,
     notify: tab.notify ?? true,
   }));

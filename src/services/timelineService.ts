@@ -24,8 +24,20 @@ export class TimelineService {
     return this.client.searchPosts(query);
   }
 
+  getNotifications(): Promise<TimelinePost[]> {
+    return this.client.getNotifications();
+  }
+
   createPost(text: string): Promise<void> {
     return this.client.createPost(text);
+  }
+
+  toggleLike(post: TimelinePost): Promise<TimelinePost> {
+    return this.client.toggleLike(post);
+  }
+
+  toggleRepost(post: TimelinePost): Promise<TimelinePost> {
+    return this.client.toggleRepost(post);
   }
 }
 
