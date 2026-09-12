@@ -4,10 +4,11 @@ interface TimelineTableProps {
   posts: TimelinePost[];
   selectedPostId?: string;
   unreadPostIds: Set<string>;
+  boldUnreadPosts: boolean;
   onSelectPost: (id: string) => void;
 }
 
-export function TimelineTable({ posts, selectedPostId, unreadPostIds, onSelectPost }: TimelineTableProps) {
+export function TimelineTable({ posts, selectedPostId, unreadPostIds, boldUnreadPosts, onSelectPost }: TimelineTableProps) {
   return (
     <table className="timeline-table">
       <colgroup>
@@ -32,7 +33,7 @@ export function TimelineTable({ posts, selectedPostId, unreadPostIds, onSelectPo
         {posts.map((post) => (
           <tr
             key={post.id}
-            className={getRowClassName(post.id, selectedPostId, unreadPostIds)}
+            className={getRowClassName(post.id, selectedPostId, unreadPostIds, boldUnreadPosts)}
             onClick={() => onSelectPost(post.id)}
           >
             <td>
@@ -72,12 +73,17 @@ function getKindLabel(kind: TimelinePost["kind"]): string {
   }
 }
 
-function getRowClassName(postId: string, selectedPostId: string | undefined, unreadPostIds: Set<string>): string | undefined {
+function getRowClassName(
+  postId: string,
+  selectedPostId: string | undefined,
+  unreadPostIds: Set<string>,
+  boldUnreadPosts: boolean,
+): string | undefined {
   const classes = [];
   if (postId === selectedPostId) {
     classes.push("selected");
   }
-  if (unreadPostIds.has(postId)) {
+  if (boldUnreadPosts && unreadPostIds.has(postId)) {
     classes.push("unread");
   }
   return classes.length > 0 ? classes.join(" ") : undefined;

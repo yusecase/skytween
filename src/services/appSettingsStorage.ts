@@ -8,6 +8,7 @@ export interface AppSettings {
   refreshIntervalSeconds: number;
   notificationsEnabled: boolean;
   showHomeReplies: boolean;
+  boldUnreadPosts: boolean;
   readPostIds: string[];
 }
 

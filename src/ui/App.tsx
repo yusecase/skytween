@@ -6,23 +6,15 @@ import { notifyNewPosts, sendTestNotification } from "../services/notificationSe
 import type { TimelinePost, TimelineTab } from "../types/timeline";
 import { LoginPanel } from "./LoginPanel";
 import { PostDetail } from "./PostDetail";
+import { SettingsDialog, type SettingsDraft } from "./SettingsDialog";
 import { TimelineTable } from "./TimelineTable";
 
-const buildLabel = "notify-actions-1";
+const buildLabel = "settings-dialog-1";
 const initialTabs: TimelineTab[] = [
   { id: "home", title: "Home", type: "home", notify: true },
   { id: "notifications", title: "Notifications", type: "notifications", notify: true },
 ];
 const initialSettings = loadAppSettings();
-
-const refreshIntervals = [
-  { label: "自動更新なし", value: 0 },
-  { label: "30秒", value: 30 },
-  { label: "1分", value: 60 },
-  { label: "2分", value: 120 },
-  { label: "5分", value: 300 },
-  { label: "10分", value: 600 },
-];
 
 export function App() {
   const [tabs, setTabs] = useState<TimelineTab[]>(() => normalizeTabs(initialSettings.tabs));
@@ -34,12 +26,20 @@ export function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [actionPostId, setActionPostId] = useState<string | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(timelineService.isAuthenticated);
   const [composerText, setComposerText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshIntervalSeconds, setRefreshIntervalSeconds] = useState(initialSettings.refreshIntervalSeconds ?? 0);
   const [notificationsEnabled, setNotificationsEnabled] = useState(initialSettings.notificationsEnabled ?? true);
   const [showHomeReplies, setShowHomeReplies] = useState(initialSettings.showHomeReplies ?? false);
+  const [boldUnreadPosts, setBoldUnreadPosts] = useState(initialSettings.boldUnreadPosts ?? true);
+  const [settingsDraft, setSettingsDraft] = useState<SettingsDraft>(() => ({
+    refreshIntervalSeconds: initialSettings.refreshIntervalSeconds ?? 0,
+    notificationsEnabled: initialSettings.notificationsEnabled ?? true,
+    showHomeReplies: initialSettings.showHomeReplies ?? false,
+    boldUnreadPosts: initialSettings.boldUnreadPosts ?? true,
+  }));
   const [readPostIds, setReadPostIds] = useState<Set<string>>(() => new Set(initialSettings.readPostIds ?? []));
   const knownPostIdsByTab = useRef(new Map<string, Set<string>>());
   const hasCompletedInitialLoadByTab = useRef(new Set<string>());
@@ -267,6 +267,33 @@ export function App() {
     setVisiblePosts((current) => current.map((post) => (post.id === updatedPost.id || post.uri === updatedPost.uri ? updatedPost : post)));
   }
 
+  function openSettings() {
+    setSettingsDraft({
+      refreshIntervalSeconds,
+      notificationsEnabled,
+      showHomeReplies,
+      boldUnreadPosts,
+    });
+    setIsSettingsOpen(true);
+  }
+
+  function applySettings() {
+    setRefreshIntervalSeconds(settingsDraft.refreshIntervalSeconds);
+    setNotificationsEnabled(settingsDraft.notificationsEnabled);
+    setShowHomeReplies(settingsDraft.showHomeReplies);
+    setBoldUnreadPosts(settingsDraft.boldUnreadPosts);
+    setIsSettingsOpen(false);
+    setStatus("設定を保存しました");
+  }
+
+  function sendSettingsTestNotification() {
+    void sendTestNotification()
+      .then(() => setStatus("通知テストを送信しました"))
+      .catch((error) => {
+        setStatus(error instanceof Error ? error.message : "通知テストに失敗しました");
+      });
+  }
+
   useEffect(() => {
     tabsRef.current = tabs;
   }, [tabs]);
@@ -294,9 +321,10 @@ export function App() {
       refreshIntervalSeconds,
       notificationsEnabled,
       showHomeReplies,
+      boldUnreadPosts,
       readPostIds: [...readPostIds].slice(-2500),
     });
-  }, [activeTabId, notificationsEnabled, readPostIds, refreshIntervalSeconds, showHomeReplies, tabs]);
+  }, [activeTabId, boldUnreadPosts, notificationsEnabled, readPostIds, refreshIntervalSeconds, showHomeReplies, tabs]);
 
   useEffect(() => {
     const initialTabId = tabsRef.current.some((tab) => tab.id === activeTabIdRef.current) ? activeTabIdRef.current : "home";
@@ -360,27 +388,6 @@ export function App() {
             検索
           </button>
         </form>
-        <label className="interval-control">
-          更新間隔
-          <select
-            value={refreshIntervalSeconds}
-            onChange={(event) => setRefreshIntervalSeconds(Number(event.target.value))}
-          >
-            {refreshIntervals.map((interval) => (
-              <option key={interval.value} value={interval.value}>
-                {interval.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="interval-control" title="Homeタイムラインにフォロー中アカウントのリプライを表示">
-          <input
-            type="checkbox"
-            checked={showHomeReplies}
-            onChange={(event) => setShowHomeReplies(event.target.checked)}
-          />
-          リプライ表示
-        </label>
         <button
           className="toolbar-button icon-only"
           onClick={() => setNotificationsEnabled((value) => !value)}
@@ -388,16 +395,8 @@ export function App() {
         >
           {notificationsEnabled ? <Bell size={15} /> : <BellOff size={15} />}
         </button>
-        <button
-          className="toolbar-button"
-          onClick={() => {
-            void sendTestNotification().catch((error) => {
-              setStatus(error instanceof Error ? error.message : "通知テストに失敗しました");
-            });
-          }}
-          title="通知テスト"
-        >
-          通知テスト
+        <button className="toolbar-button" onClick={openSettings} title="設定">
+          設定
         </button>
         <div className="menu-spacer" />
         <LoginPanel
@@ -417,6 +416,7 @@ export function App() {
             posts={visiblePosts}
             selectedPostId={selectedPost?.id}
             unreadPostIds={unreadPostIds}
+            boldUnreadPosts={boldUnreadPosts}
             onSelectPost={handleSelectPost}
           />
         </section>
@@ -509,6 +509,15 @@ export function App() {
       </footer>
 
       <div className="status-bar">{status}</div>
+      {isSettingsOpen && (
+        <SettingsDialog
+          draft={settingsDraft}
+          onChange={setSettingsDraft}
+          onCancel={() => setIsSettingsOpen(false)}
+          onOk={applySettings}
+          onSendTestNotification={sendSettingsTestNotification}
+        />
+      )}
     </div>
   );
 }

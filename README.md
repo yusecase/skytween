@@ -14,6 +14,7 @@ This is not an official Bluesky client.
 - Per-tab notification toggle
 - Automatic refresh interval selector
 - Persisted tabs, refresh interval, notification toggles, and reply visibility settings
+- Settings dialog with custom auto-refresh interval in seconds
 - Read/unread timeline state with unread rows shown in bold
 - Home reply visibility toggle, disabled by default
 - Windows toast notifications for newly detected posts
