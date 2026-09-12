@@ -47,6 +47,7 @@ export function App() {
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef(activeTabId);
   const showHomeRepliesRef = useRef(showHomeReplies);
+  const isAutoRefreshingRef = useRef(false);
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId);
 
@@ -105,6 +106,22 @@ export function App() {
       if (requestSeqByTab.current.get(tab.id) === seq) {
         setIsLoading(false);
       }
+    }
+  }
+
+  async function refreshAllTabs(options: { silent?: boolean } = {}) {
+    if (isAutoRefreshingRef.current) {
+      return;
+    }
+
+    isAutoRefreshingRef.current = true;
+    try {
+      const tabIds = tabsRef.current.map((tab) => tab.id);
+      for (const tabId of tabIds) {
+        await refreshTab(tabId, options);
+      }
+    } finally {
+      isAutoRefreshingRef.current = false;
     }
   }
 
@@ -357,11 +374,11 @@ export function App() {
     }
 
     const intervalId = window.setInterval(() => {
-      void refreshTab(activeTabId, { silent: true });
+      void refreshAllTabs({ silent: true });
     }, refreshIntervalSeconds * 1000);
 
     return () => window.clearInterval(intervalId);
-  }, [activeTabId, refreshIntervalSeconds, notificationsEnabled]);
+  }, [refreshIntervalSeconds, notificationsEnabled]);
 
   return (
     <div className="app-shell">
