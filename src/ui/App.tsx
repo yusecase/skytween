@@ -366,7 +366,7 @@ export function App() {
   return (
     <div className="app-shell">
       <header className="menu-bar">
-        <div className="brand">BskyTween <span>{buildLabel}</span></div>
+        <div className="brand">SkyTween <span>{buildLabel}</span></div>
         <button className="toolbar-button" onClick={() => void refreshTab(activeTabId)} disabled={isLoading} title="更新">
           <RefreshCw size={15} />
           更新

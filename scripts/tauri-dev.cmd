@@ -11,5 +11,5 @@ call "%VSDEVCMD%" -arch=x64
 if errorlevel 1 exit /b %errorlevel%
 
 set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
-set "CARGO_TARGET_DIR=%LOCALAPPDATA%\BskyTween\target"
+set "CARGO_TARGET_DIR=%LOCALAPPDATA%\SkyTween\target"
 npm run tauri dev

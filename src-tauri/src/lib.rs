@@ -16,5 +16,5 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![send_windows_notification])
         .run(tauri::generate_context!())
-        .expect("error while running BskyTween");
+        .expect("error while running SkyTween");
 }

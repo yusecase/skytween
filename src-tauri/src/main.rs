@@ -1,3 +1,3 @@
 fn main() {
-    bskytween_lib::run()
+    skytween_lib::run()
 }

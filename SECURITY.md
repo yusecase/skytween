@@ -7,7 +7,7 @@ Report them privately to the repository owner.
 
 ## Credential Handling
 
-BskyTween does not intentionally store Bluesky app passwords in the repository or in plain text project files.
+SkyTween does not intentionally store Bluesky app passwords in the repository or in plain text project files.
 
 Current versions persist AT Protocol session data in localStorage so the app can resume login. Treat that local session data as sensitive because it can include access and refresh tokens.
 

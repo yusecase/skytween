@@ -14,7 +14,7 @@ export interface LoginCredentials {
   service?: string;
 }
 
-export class BskyClient {
+export class SkyClient {
   private agent: Agent | null = null;
   private session: CredentialSession | null = null;
 
@@ -365,7 +365,7 @@ const sampleTimeline: TimelinePost[] = [
     id: "sample:1",
     uri: "sample:1",
     cid: "sample-cid-1",
-    authorDisplayName: "BskyTween Preview",
+    authorDisplayName: "SkyTween Preview",
     authorHandle: "preview.local",
     text: "ログイン前のプレビューです。Blueskyの app password でログインするとHome Timelineを取得します。",
     indexedAt: now.toISOString(),

@@ -12,11 +12,11 @@ export async function notifyNewPosts(posts: TimelinePost[], source: string): Pro
       ? `${newest.authorDisplayName}: ${newest.text}`
       : `${posts.length}件の新着があります: ${newest.authorDisplayName}`;
 
-  await sendNativeNotification(`BskyTween: ${source}`, body);
+  await sendNativeNotification(`SkyTween: ${source}`, body);
 }
 
 export async function sendTestNotification(): Promise<void> {
-  await sendNativeNotification("BskyTween", "通知テストです");
+  await sendNativeNotification("SkyTween", "通知テストです");
 }
 
 async function sendNativeNotification(title: string, body: string): Promise<void> {

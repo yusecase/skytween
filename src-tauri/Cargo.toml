@@ -1,12 +1,12 @@
 [package]
-name = "bskytween"
+name = "skytween"
 version = "0.1.0"
 description = "OpenTween-style Bluesky desktop client"
-authors = ["BskyTween Contributors"]
+authors = ["SkyTween Contributors"]
 edition = "2021"
 
 [lib]
-name = "bskytween_lib"
+name = "skytween_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

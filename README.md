@@ -1,9 +1,9 @@
-# BskyTween
+# SkyTween
 
-BskyTween is a Windows desktop Bluesky client prototype inspired by OpenTween.
+SkyTween is a Windows desktop client for Bluesky, inspired by OpenTween.
 It focuses on dense timeline reading, fast tab switching, and collecting multiple information sources into one compact app.
 
-This is not an official Bluesky client.
+SkyTween is not affiliated with, endorsed by, or officially connected to Bluesky Social PBC.
 
 ## Features
 
@@ -35,15 +35,17 @@ This is not an official Bluesky client.
 
 ## Privacy And Credentials
 
-BskyTween asks for a Bluesky handle and app password at login.
+SkyTween asks for a Bluesky handle and app password at login.
 
 The app does not hard-code credentials or API keys. The entered app password is used only for the login request.
 
 Current session persistence stores the AT Protocol session data in the Tauri WebView localStorage under:
 
 ```text
-bskytween.atproto.session.v1
+skytween.atproto.session.v1
 ```
+
+Older development builds used `bskytween.atproto.session.v1`; SkyTween reads that key once and migrates it to the new key when found.
 
 That session data can include access and refresh tokens. It is local runtime data and must not be committed to GitHub. It is not stored in this repository by normal app usage.
 
@@ -82,7 +84,7 @@ Do not commit:
 - `.env` or `.env.*`
 - private keys, certificates, app passwords, access tokens, or refresh tokens
 
-Release binaries such as `bskytween.exe` and the installer should be uploaded to GitHub Releases instead of committed to the repository.
+Release binaries such as `skytween.exe` and the installer should be uploaded to GitHub Releases instead of committed to the repository.
 
 ## Development Setup
 

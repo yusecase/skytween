@@ -1,8 +1,8 @@
-import { BskyClient, type LoginCredentials } from "./bskyClient";
+import { SkyClient, type LoginCredentials } from "./skyClient";
 import type { TimelinePost } from "../types/timeline";
 
 export class TimelineService {
-  constructor(private readonly client: BskyClient) {}
+  constructor(private readonly client: SkyClient) {}
 
   get isAuthenticated(): boolean {
     return this.client.isAuthenticated;
@@ -41,4 +41,4 @@ export class TimelineService {
   }
 }
 
-export const timelineService = new TimelineService(new BskyClient());
+export const timelineService = new TimelineService(new SkyClient());
