@@ -31,6 +31,20 @@ export interface TimelinePost {
   images: TimelineImage[];
 }
 
+export interface UserProfile {
+  did: string;
+  handle: string;
+  displayName: string;
+  avatar?: string;
+  banner?: string;
+  description?: string;
+  followersCount: number;
+  followsCount: number;
+  postsCount: number;
+  following: boolean;
+  followedBy: boolean;
+}
+
 export interface TimelineTab {
   id: string;
   title: string;

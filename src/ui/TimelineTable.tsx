@@ -6,9 +6,17 @@ interface TimelineTableProps {
   unreadPostIds: Set<string>;
   boldUnreadPosts: boolean;
   onSelectPost: (id: string) => void;
+  onOpenProfile: (actor: string) => void;
 }
 
-export function TimelineTable({ posts, selectedPostId, unreadPostIds, boldUnreadPosts, onSelectPost }: TimelineTableProps) {
+export function TimelineTable({
+  posts,
+  selectedPostId,
+  unreadPostIds,
+  boldUnreadPosts,
+  onSelectPost,
+  onOpenProfile,
+}: TimelineTableProps) {
   return (
     <table className="timeline-table">
       <colgroup>
@@ -37,19 +45,53 @@ export function TimelineTable({ posts, selectedPostId, unreadPostIds, boldUnread
             onClick={() => onSelectPost(post.id)}
           >
             <td>
-              {post.authorAvatar ? (
-                <img className="avatar" src={post.authorAvatar} alt="" loading="lazy" />
-              ) : (
-                <div className="avatar fallback" />
-              )}
+              <button
+                className="profile-cell-button avatar-button"
+                type="button"
+                title={`@${post.authorHandle} のプロフィールを表示`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenProfile(post.authorHandle);
+                }}
+              >
+                {post.authorAvatar ? (
+                  <img className="avatar" src={post.authorAvatar} alt="" loading="lazy" />
+                ) : (
+                  <div className="avatar fallback" />
+                )}
+              </button>
             </td>
-            <td className="clip">{post.authorDisplayName}</td>
+            <td className="clip">
+              <button
+                className="profile-cell-button text-button"
+                type="button"
+                title={`@${post.authorHandle} のプロフィールを表示`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenProfile(post.authorHandle);
+                }}
+              >
+                {post.authorDisplayName}
+              </button>
+            </td>
             <td className="post-text">
               <span className={`kind kind-${post.kind}`}>{getKindLabel(post.kind)}</span>
               {post.text}
             </td>
             <td>{formatDate(post.indexedAt)}</td>
-            <td className="clip">@{post.authorHandle}</td>
+            <td className="clip">
+              <button
+                className="profile-cell-button text-button"
+                type="button"
+                title={`@${post.authorHandle} のプロフィールを表示`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenProfile(post.authorHandle);
+                }}
+              >
+                @{post.authorHandle}
+              </button>
+            </td>
             <td>{post.source}</td>
           </tr>
         ))}

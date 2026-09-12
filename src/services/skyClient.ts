@@ -1,12 +1,13 @@
 import {
   Agent,
+  type AppBskyActorDefs,
   CredentialSession,
   type AppBskyFeedDefs,
   type AppBskyNotificationListNotifications,
   type AtpSessionData,
 } from "@atproto/api";
 import { loadSession, saveSession } from "./sessionStorage";
-import type { PostKind, TimelineImage, TimelinePost } from "../types/timeline";
+import type { PostKind, TimelineImage, TimelinePost, UserProfile } from "../types/timeline";
 
 export interface LoginCredentials {
   identifier: string;
@@ -86,6 +87,15 @@ export class SkyClient {
     const response = await this.agent.listNotifications({ limit });
     const subjectPosts = await this.getNotificationSubjectPosts(response.data.notifications);
     return response.data.notifications.map((notification) => mapNotification(notification, subjectPosts.get(notification.reasonSubject ?? "")));
+  }
+
+  async getProfile(actor: string): Promise<UserProfile> {
+    if (!this.agent) {
+      throw new Error("プロフィールを取得するにはログインしてください");
+    }
+
+    const response = await this.agent.app.bsky.actor.getProfile({ actor });
+    return mapProfile(response.data);
   }
 
   async createPost(text: string): Promise<void> {
@@ -184,6 +194,22 @@ export class SkyClient {
     }
     return posts;
   }
+}
+
+function mapProfile(profile: AppBskyActorDefs.ProfileViewDetailed): UserProfile {
+  return {
+    did: profile.did,
+    handle: profile.handle,
+    displayName: profile.displayName || profile.handle,
+    avatar: profile.avatar,
+    banner: profile.banner,
+    description: profile.description,
+    followersCount: profile.followersCount ?? 0,
+    followsCount: profile.followsCount ?? 0,
+    postsCount: profile.postsCount ?? 0,
+    following: Boolean(profile.viewer?.following),
+    followedBy: Boolean(profile.viewer?.followedBy),
+  };
 }
 
 function getServiceFromSession(session: AtpSessionData): URL {

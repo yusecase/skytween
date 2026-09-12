@@ -3,9 +3,10 @@ import { Bell, BellOff, RefreshCw, Search, Send, X } from "lucide-react";
 import { timelineService } from "../services/timelineService";
 import { loadAppSettings, saveAppSettings } from "../services/appSettingsStorage";
 import { notifyNewPosts, sendTestNotification } from "../services/notificationService";
-import type { TimelinePost, TimelineTab } from "../types/timeline";
+import type { TimelinePost, TimelineTab, UserProfile } from "../types/timeline";
 import { LoginPanel } from "./LoginPanel";
 import { PostDetail } from "./PostDetail";
+import { ProfileDialog } from "./ProfileDialog";
 import { SettingsDialog, type SettingsDraft } from "./SettingsDialog";
 import { TimelineTable } from "./TimelineTable";
 
@@ -27,6 +28,10 @@ export function App() {
   const [isPosting, setIsPosting] = useState(false);
   const [actionPostId, setActionPostId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [profileActor, setProfileActor] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile | undefined>(undefined);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | undefined>(undefined);
   const [isAuthenticated, setIsAuthenticated] = useState(timelineService.isAuthenticated);
   const [composerText, setComposerText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -48,6 +53,7 @@ export function App() {
   const activeTabIdRef = useRef(activeTabId);
   const showHomeRepliesRef = useRef(showHomeReplies);
   const isAutoRefreshingRef = useRef(false);
+  const profileRequestSeq = useRef(0);
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId);
 
@@ -123,6 +129,44 @@ export function App() {
     } finally {
       isAutoRefreshingRef.current = false;
     }
+  }
+
+  async function openProfile(actor: string) {
+    const trimmedActor = actor.trim();
+    if (!trimmedActor) {
+      return;
+    }
+
+    const seq = profileRequestSeq.current + 1;
+    profileRequestSeq.current = seq;
+    setProfileActor(trimmedActor);
+    setProfile(undefined);
+    setProfileError(undefined);
+    setIsProfileLoading(true);
+    try {
+      const nextProfile = await timelineService.getProfile(trimmedActor);
+      if (profileRequestSeq.current !== seq) {
+        return;
+      }
+      setProfile(nextProfile);
+    } catch (error) {
+      if (profileRequestSeq.current !== seq) {
+        return;
+      }
+      setProfileError(error instanceof Error ? error.message : "プロフィールの取得に失敗しました");
+    } finally {
+      if (profileRequestSeq.current === seq) {
+        setIsProfileLoading(false);
+      }
+    }
+  }
+
+  function closeProfile() {
+    profileRequestSeq.current += 1;
+    setProfileActor(null);
+    setProfile(undefined);
+    setProfileError(undefined);
+    setIsProfileLoading(false);
   }
 
   function detectNewPosts(tabId: string, nextPosts: TimelinePost[]): TimelinePost[] {
@@ -476,6 +520,7 @@ export function App() {
             unreadPostIds={unreadPostIds}
             boldUnreadPosts={boldUnreadPosts}
             onSelectPost={handleSelectPost}
+            onOpenProfile={(actor) => void openProfile(actor)}
           />
         </section>
 
@@ -574,6 +619,15 @@ export function App() {
           onCancel={() => setIsSettingsOpen(false)}
           onOk={applySettings}
           onSendTestNotification={sendSettingsTestNotification}
+        />
+      )}
+      {profileActor && (
+        <ProfileDialog
+          actor={profileActor}
+          profile={profile}
+          isLoading={isProfileLoading}
+          error={profileError}
+          onClose={closeProfile}
         />
       )}
     </div>

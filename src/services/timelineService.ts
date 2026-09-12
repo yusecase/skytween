@@ -1,5 +1,5 @@
 import { SkyClient, type LoginCredentials } from "./skyClient";
-import type { TimelinePost } from "../types/timeline";
+import type { TimelinePost, UserProfile } from "../types/timeline";
 
 export class TimelineService {
   constructor(private readonly client: SkyClient) {}
@@ -26,6 +26,10 @@ export class TimelineService {
 
   getNotifications(): Promise<TimelinePost[]> {
     return this.client.getNotifications();
+  }
+
+  getProfile(actor: string): Promise<UserProfile> {
+    return this.client.getProfile(actor);
   }
 
   createPost(text: string): Promise<void> {
