@@ -11,6 +11,7 @@ import { SettingsDialog, type SettingsDraft } from "./SettingsDialog";
 import { TimelineTable } from "./TimelineTable";
 
 const buildLabel = "settings-dialog-1";
+const defaultPostRetentionLimit = 1000;
 const initialTabs: TimelineTab[] = [
   { id: "home", title: "Home", type: "home", notify: true },
   { id: "notifications", title: "Notifications", type: "notifications", notify: true },
@@ -39,19 +40,23 @@ export function App() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(initialSettings.notificationsEnabled ?? true);
   const [showHomeReplies, setShowHomeReplies] = useState(initialSettings.showHomeReplies ?? false);
   const [boldUnreadPosts, setBoldUnreadPosts] = useState(initialSettings.boldUnreadPosts ?? true);
+  const [postRetentionLimit, setPostRetentionLimit] = useState(normalizePostRetentionLimit(initialSettings.postRetentionLimit));
   const [settingsDraft, setSettingsDraft] = useState<SettingsDraft>(() => ({
     refreshIntervalSeconds: initialSettings.refreshIntervalSeconds ?? 0,
     notificationsEnabled: initialSettings.notificationsEnabled ?? true,
     showHomeReplies: initialSettings.showHomeReplies ?? false,
     boldUnreadPosts: initialSettings.boldUnreadPosts ?? true,
+    postRetentionLimit: normalizePostRetentionLimit(initialSettings.postRetentionLimit),
   }));
   const [readPostIds, setReadPostIds] = useState<Set<string>>(() => new Set(initialSettings.readPostIds ?? []));
   const knownPostIdsByTab = useRef(new Map<string, Set<string>>());
   const hasCompletedInitialLoadByTab = useRef(new Set<string>());
   const requestSeqByTab = useRef(new Map<string, number>());
+  const postsByTabRef = useRef(postsByTab);
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef(activeTabId);
   const showHomeRepliesRef = useRef(showHomeReplies);
+  const postRetentionLimitRef = useRef(postRetentionLimit);
   const isAutoRefreshingRef = useRef(false);
   const profileRequestSeq = useRef(0);
 
@@ -93,9 +98,11 @@ export function App() {
         return;
       }
       const newPosts = detectNewPosts(tab.id, nextPosts);
-      setPostsByTab((current) => ({ ...current, [tab.id]: nextPosts }));
+      const mergedPosts = mergeTimelinePosts(nextPosts, postsByTabRef.current[tab.id] ?? [], postRetentionLimitRef.current);
+      postsByTabRef.current = { ...postsByTabRef.current, [tab.id]: mergedPosts };
+      setPostsByTab((current) => ({ ...current, [tab.id]: mergedPosts }));
       if (tab.id === activeTabIdRef.current) {
-        const displayPosts = getDisplayPosts(tab, nextPosts, showHomeRepliesRef.current);
+        const displayPosts = getDisplayPosts(tab, mergedPosts, showHomeRepliesRef.current);
         setVisiblePosts(displayPosts);
         setSelectedPostId((current) => current ?? displayPosts[0]?.id ?? null);
         setStatus(`${tab.title}: ${displayPosts.length}件を表示中`);
@@ -200,8 +207,9 @@ export function App() {
       const nextTabs = [...tabsRef.current, { id, title: `Search: ${query}`, type: "search" as const, query, notify: true }];
       tabsRef.current = nextTabs;
       setTabs(nextTabs);
+      postsByTabRef.current = { ...postsByTabRef.current, [id]: [] };
+      setPostsByTab((current) => ({ ...current, [id]: [] }));
     }
-    setPostsByTab((current) => ({ ...current, [id]: [] }));
     switchTab(id);
   }
 
@@ -216,6 +224,7 @@ export function App() {
     setPostsByTab((current) => {
       const next = { ...current };
       delete next[tabId];
+      postsByTabRef.current = next;
       return next;
     });
     knownPostIdsByTab.current.delete(tabId);
@@ -339,9 +348,25 @@ export function App() {
       for (const [tabId, posts] of Object.entries(current)) {
         next[tabId] = posts.map((post) => (post.id === updatedPost.id || post.uri === updatedPost.uri ? updatedPost : post));
       }
+      postsByTabRef.current = next;
       return next;
     });
     setVisiblePosts((current) => current.map((post) => (post.id === updatedPost.id || post.uri === updatedPost.uri ? updatedPost : post)));
+  }
+
+  function trimStoredPosts(limit: number) {
+    setPostsByTab((current) => {
+      const next: Record<string, TimelinePost[]> = {};
+      for (const [tabId, posts] of Object.entries(current)) {
+        next[tabId] = mergeTimelinePosts(posts, [], limit);
+      }
+      postsByTabRef.current = next;
+      const activeTab = tabsRef.current.find((tab) => tab.id === activeTabIdRef.current);
+      if (activeTab) {
+        setVisiblePosts(getDisplayPosts(activeTab, next[activeTab.id] ?? [], showHomeRepliesRef.current));
+      }
+      return next;
+    });
   }
 
   function openSettings() {
@@ -350,6 +375,7 @@ export function App() {
       notificationsEnabled,
       showHomeReplies,
       boldUnreadPosts,
+      postRetentionLimit,
     });
     setIsSettingsOpen(true);
   }
@@ -359,6 +385,8 @@ export function App() {
     setNotificationsEnabled(settingsDraft.notificationsEnabled);
     setShowHomeReplies(settingsDraft.showHomeReplies);
     setBoldUnreadPosts(settingsDraft.boldUnreadPosts);
+    setPostRetentionLimit(settingsDraft.postRetentionLimit);
+    trimStoredPosts(settingsDraft.postRetentionLimit);
     setIsSettingsOpen(false);
     setStatus("設定を保存しました");
   }
@@ -372,6 +400,10 @@ export function App() {
   }
 
   useEffect(() => {
+    postsByTabRef.current = postsByTab;
+  }, [postsByTab]);
+
+  useEffect(() => {
     tabsRef.current = tabs;
   }, [tabs]);
 
@@ -381,11 +413,12 @@ export function App() {
 
   useEffect(() => {
     showHomeRepliesRef.current = showHomeReplies;
+    postRetentionLimitRef.current = postRetentionLimit;
     const tab = tabsRef.current.find((currentTab) => currentTab.id === activeTabIdRef.current);
     if (tab) {
       setVisiblePosts(getDisplayPosts(tab, postsByTab[tab.id] ?? [], showHomeReplies));
     }
-  }, [activeTabId, postsByTab, showHomeReplies]);
+  }, [activeTabId, postRetentionLimit, postsByTab, showHomeReplies]);
 
   useEffect(() => {
     markPostAsRead(selectedPost?.id);
@@ -424,9 +457,10 @@ export function App() {
       notificationsEnabled,
       showHomeReplies,
       boldUnreadPosts,
+      postRetentionLimit,
       readPostIds: [...readPostIds].slice(-2500),
     });
-  }, [activeTabId, boldUnreadPosts, notificationsEnabled, readPostIds, refreshIntervalSeconds, showHomeReplies, tabs]);
+  }, [activeTabId, boldUnreadPosts, notificationsEnabled, postRetentionLimit, readPostIds, refreshIntervalSeconds, showHomeReplies, tabs]);
 
   useEffect(() => {
     const initialTabId = tabsRef.current.some((tab) => tab.id === activeTabIdRef.current) ? activeTabIdRef.current : "home";
@@ -634,6 +668,30 @@ export function App() {
   );
 }
 
+function mergeTimelinePosts(incomingPosts: TimelinePost[], existingPosts: TimelinePost[], limit: number): TimelinePost[] {
+  const seenKeys = new Set<string>();
+  const mergedPosts = [];
+
+  for (const post of [...incomingPosts, ...existingPosts]) {
+    const keys = getPostDedupeKeys(post);
+    if (keys.some((key) => seenKeys.has(key))) {
+      continue;
+    }
+    keys.forEach((key) => seenKeys.add(key));
+    mergedPosts.push(post);
+  }
+
+  return mergedPosts
+    .sort((left, right) => new Date(right.indexedAt).getTime() - new Date(left.indexedAt).getTime())
+    .slice(0, limit);
+}
+
+function getPostDedupeKeys(post: TimelinePost): string[] {
+  return [post.id, post.uri].filter((value, index, values): value is string => (
+    typeof value === "string" && value.length > 0 && values.indexOf(value) === index
+  ));
+}
+
 function getDisplayPosts(tab: TimelineTab, posts: TimelinePost[], showHomeReplies: boolean): TimelinePost[] {
   if (tab.type !== "search") {
     return posts
@@ -669,6 +727,13 @@ function tagPostsForTab(tab: TimelineTab, posts: TimelinePost[]): TimelinePost[]
 
 function normalizeSearchText(value: string): string {
   return value.trim().toLocaleLowerCase();
+}
+
+function normalizePostRetentionLimit(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return defaultPostRetentionLimit;
+  }
+  return Math.max(50, Math.min(10000, Math.floor(value)));
 }
 
 function isTextInputTarget(target: EventTarget | null): boolean {

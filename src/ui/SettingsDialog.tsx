@@ -5,6 +5,7 @@ export interface SettingsDraft {
   notificationsEnabled: boolean;
   showHomeReplies: boolean;
   boldUnreadPosts: boolean;
+  postRetentionLimit: number;
 }
 
 interface SettingsDialogProps {
@@ -92,6 +93,21 @@ export function SettingsDialog({
                 />
                 未読ポストを太字で表示する
               </label>
+              <label className="settings-row">
+                <span>タブごとの保持件数</span>
+                <span className="settings-inline-field">
+                  <input
+                    type="number"
+                    min={50}
+                    max={10000}
+                    step={50}
+                    value={draft.postRetentionLimit}
+                    onChange={(event) => updateDraft({ postRetentionLimit: normalizePostRetentionLimit(event.target.value) })}
+                  />
+                  件
+                </span>
+              </label>
+              <p className="settings-help">更新で取得した投稿を既存の一覧に追加して、この件数まで保持します。多くしすぎるとメモリ使用量や表示が重くなる場合があります。</p>
             </section>
 
             <section className="settings-page">
@@ -125,4 +141,12 @@ function normalizeSeconds(value: string): number {
     return 0;
   }
   return Math.max(0, Math.min(86400, Math.floor(nextValue)));
+}
+
+function normalizePostRetentionLimit(value: string): number {
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue)) {
+    return 1000;
+  }
+  return Math.max(50, Math.min(10000, Math.floor(nextValue)));
 }

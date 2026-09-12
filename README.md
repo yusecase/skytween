@@ -15,6 +15,7 @@ SkyTween is not affiliated with, endorsed by, or officially connected to Bluesky
 - Automatic refresh interval selector
 - Persisted tabs, refresh interval, notification toggles, and reply visibility settings
 - Settings dialog with custom auto-refresh interval in seconds
+- Configurable per-tab post retention limit
 - Read/unread timeline state with unread rows shown in bold
 - Home reply visibility toggle, disabled by default
 - Windows toast notifications for newly detected posts

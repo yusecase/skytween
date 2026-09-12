@@ -10,6 +10,7 @@ export interface AppSettings {
   notificationsEnabled: boolean;
   showHomeReplies: boolean;
   boldUnreadPosts: boolean;
+  postRetentionLimit: number;
   readPostIds: string[];
 }
 
