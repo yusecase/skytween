@@ -476,9 +476,6 @@ export function App() {
             </button>
           ))}
           <button className="tab muted" disabled>
-            Notifications
-          </button>
-          <button className="tab muted" disabled>
             Custom Feed
           </button>
         </nav>
@@ -559,8 +556,17 @@ function normalizeTabs(tabs: TimelineTab[] | undefined): TimelineTab[] {
   const withHome = hasHome ? nextTabs : [initialTabs[0], ...nextTabs];
   const hasNotifications = withHome.some((tab) => tab.id === "notifications");
   const withFixedTabs = hasNotifications ? withHome : [...withHome, initialTabs[1]];
-  return withFixedTabs.map((tab) => ({
-    ...tab,
-    notify: tab.notify ?? true,
-  }));
+  const seenTabIds = new Set<string>();
+  return withFixedTabs
+    .filter((tab) => {
+      if (seenTabIds.has(tab.id)) {
+        return false;
+      }
+      seenTabIds.add(tab.id);
+      return true;
+    })
+    .map((tab) => ({
+      ...tab,
+      notify: tab.notify ?? true,
+    }));
 }
