@@ -84,7 +84,8 @@ export class BskyClient {
     }
 
     const response = await this.agent.listNotifications({ limit });
-    return response.data.notifications.map(mapNotification);
+    const subjectPosts = await this.getNotificationSubjectPosts(response.data.notifications);
+    return response.data.notifications.map((notification) => mapNotification(notification, subjectPosts.get(notification.reasonSubject ?? "")));
   }
 
   async createPost(text: string): Promise<void> {
@@ -158,6 +159,31 @@ export class BskyClient {
       saveSession(session);
     });
   }
+
+  private async getNotificationSubjectPosts(
+    notifications: AppBskyNotificationListNotifications.Notification[],
+  ): Promise<Map<string, AppBskyFeedDefs.PostView>> {
+    if (!this.agent) {
+      return new Map();
+    }
+
+    const uris = [
+      ...new Set(
+        notifications
+          .filter((notification) => shouldFetchNotificationSubject(notification.reason))
+          .map((notification) => notification.reasonSubject)
+          .filter((uri): uri is string => typeof uri === "string" && uri.length > 0),
+      ),
+    ];
+    const posts = new Map<string, AppBskyFeedDefs.PostView>();
+    for (const chunk of chunkArray(uris, 25)) {
+      const response = await this.agent.getPosts({ uris: chunk });
+      for (const post of response.data.posts) {
+        posts.set(post.uri, post);
+      }
+    }
+    return posts;
+  }
 }
 
 function getServiceFromSession(session: AtpSessionData): URL {
@@ -194,7 +220,10 @@ function mapFeedViewPost(
   };
 }
 
-function mapNotification(notification: AppBskyNotificationListNotifications.Notification): TimelinePost {
+function mapNotification(
+  notification: AppBskyNotificationListNotifications.Notification,
+  subjectPost?: AppBskyFeedDefs.PostView,
+): TimelinePost {
   return {
     id: `notification:${notification.uri}:${notification.indexedAt}`,
     uri: notification.uri,
@@ -202,7 +231,7 @@ function mapNotification(notification: AppBskyNotificationListNotifications.Noti
     authorDisplayName: notification.author.displayName || notification.author.handle,
     authorHandle: notification.author.handle,
     authorAvatar: notification.author.avatar,
-    text: getNotificationText(notification),
+    text: getNotificationText(notification, subjectPost),
     indexedAt: notification.indexedAt,
     kind: getNotificationKind(notification.reason),
     source: "Notifications",
@@ -212,7 +241,7 @@ function mapNotification(notification: AppBskyNotificationListNotifications.Noti
     likeCount: 0,
     repostCount: 0,
     replyCount: 0,
-    images: [],
+    images: subjectPost ? getImages(subjectPost) : [],
   };
 }
 
@@ -228,14 +257,34 @@ function getRecordText(record: { [_ in string]: unknown }): string {
   return typeof record.text === "string" ? record.text : "";
 }
 
-function getNotificationText(notification: AppBskyNotificationListNotifications.Notification): string {
+function getNotificationText(
+  notification: AppBskyNotificationListNotifications.Notification,
+  subjectPost?: AppBskyFeedDefs.PostView,
+): string {
   const label = getNotificationReasonLabel(notification.reason);
+  const authorName = notification.author.displayName || notification.author.handle;
   const text = getRecordText(notification.record);
-  if (text) {
-    return `${label}: ${text}`;
+  const subjectText = subjectPost ? getPostText(subjectPost) : "";
+  const friendlySubject = subjectText || notification.reasonSubject || "";
+
+  if (notification.reason === "follow") {
+    return `${authorName}さんにフォローされました`;
   }
-  if (notification.reasonSubject) {
-    return `${label}: ${notification.reasonSubject}`;
+  if (notification.reason === "like" || notification.reason === "like-via-repost") {
+    return friendlySubject
+      ? `${authorName}さんがあなたの投稿にいいねしました: ${friendlySubject}`
+      : `${authorName}さんがあなたの投稿にいいねしました`;
+  }
+  if (notification.reason === "repost" || notification.reason === "repost-via-repost") {
+    return friendlySubject
+      ? `${authorName}さんがあなたの投稿をリポストしました: ${friendlySubject}`
+      : `${authorName}さんがあなたの投稿をリポストしました`;
+  }
+  if (text) {
+    return `${authorName}さんから${label}: ${text}`;
+  }
+  if (friendlySubject) {
+    return `${label}: ${friendlySubject}`;
   }
   return label;
 }
@@ -255,6 +304,10 @@ function getNotificationKind(reason: string): PostKind {
 
 function isPostNotification(notification: AppBskyNotificationListNotifications.Notification): boolean {
   return ["reply", "mention", "quote", "subscribed-post"].includes(notification.reason);
+}
+
+function shouldFetchNotificationSubject(reason: string): boolean {
+  return ["like", "repost", "like-via-repost", "repost-via-repost"].includes(reason);
 }
 
 function getNotificationReasonLabel(reason: string): string {
@@ -295,6 +348,14 @@ function getImages(post: AppBskyFeedDefs.PostView): TimelineImage[] {
     fullsize: image.fullsize,
     alt: image.alt,
   })) ?? [];
+}
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
 }
 
 const now = new Date();

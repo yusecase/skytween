@@ -25,7 +25,7 @@ export function PostDetail({ post, isActionBusy, onToggleLike, onToggleRepost }:
         </div>
       </header>
       {post.replyTo && <div className="relationship">返信先: {post.replyTo}</div>}
-      {post.notificationReason && <div className="relationship">通知種別: {post.notificationReason}</div>}
+      {post.notificationReason && <div className="relationship">通知種別: {getNotificationReasonLabel(post.notificationReason)}</div>}
       <p>{post.text}</p>
       {post.quoteText && <blockquote>{post.quoteText}</blockquote>}
       {post.images.length > 0 && (
@@ -64,4 +64,29 @@ export function PostDetail({ post, isActionBusy, onToggleLike, onToggleRepost }:
       </div>
     </article>
   );
+}
+
+function getNotificationReasonLabel(reason: string): string {
+  switch (reason) {
+    case "like":
+      return "いいね";
+    case "repost":
+      return "リポスト";
+    case "follow":
+      return "フォロー";
+    case "mention":
+      return "メンション";
+    case "reply":
+      return "返信";
+    case "quote":
+      return "引用";
+    case "like-via-repost":
+      return "リポスト経由のいいね";
+    case "repost-via-repost":
+      return "リポスト経由のリポスト";
+    case "subscribed-post":
+      return "購読投稿";
+    default:
+      return reason;
+  }
 }
