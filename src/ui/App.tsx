@@ -210,6 +210,22 @@ export function App() {
     markPostAsRead(postId);
   }
 
+  function moveSelectedPost(offset: number) {
+    if (visiblePosts.length === 0) {
+      return;
+    }
+
+    const currentIndex = Math.max(
+      0,
+      visiblePosts.findIndex((post) => post.id === selectedPost?.id),
+    );
+    const nextIndex = Math.min(Math.max(currentIndex + offset, 0), visiblePosts.length - 1);
+    const nextPost = visiblePosts[nextIndex];
+    if (nextPost) {
+      handleSelectPost(nextPost.id);
+    }
+  }
+
   function markPostAsRead(postId: string | undefined) {
     if (!postId) {
       return;
@@ -330,6 +346,31 @@ export function App() {
   useEffect(() => {
     markPostAsRead(selectedPost?.id);
   }, [selectedPost?.id]);
+
+  useEffect(() => {
+    const selectedRow = document.querySelector<HTMLTableRowElement>(".timeline-table tbody tr.selected");
+    selectedRow?.scrollIntoView({ block: "nearest" });
+  }, [activeTabId, selectedPost?.id]);
+
+  useEffect(() => {
+    function handleWindowKeyDown(event: KeyboardEvent) {
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+        return;
+      }
+      if (event.altKey || event.ctrlKey || event.metaKey) {
+        return;
+      }
+      if (isTextInputTarget(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      moveSelectedPost(event.key === "ArrowUp" ? -1 : 1);
+    }
+
+    window.addEventListener("keydown", handleWindowKeyDown);
+    return () => window.removeEventListener("keydown", handleWindowKeyDown);
+  }, [selectedPost?.id, visiblePosts]);
 
   useEffect(() => {
     saveAppSettings({
@@ -574,6 +615,18 @@ function tagPostsForTab(tab: TimelineTab, posts: TimelinePost[]): TimelinePost[]
 
 function normalizeSearchText(value: string): string {
   return value.trim().toLocaleLowerCase();
+}
+
+function isTextInputTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  return Boolean(target.closest("input, textarea, select, button"));
 }
 
 function normalizeTabs(tabs: TimelineTab[] | undefined): TimelineTab[] {
