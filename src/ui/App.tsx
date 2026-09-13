@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, BellOff, RefreshCw, Search, Send, X } from "lucide-react";
+import {
+  getDisplayPosts,
+  mergeTimelinePosts,
+  normalizePostRetentionLimit,
+  tagPostsForTab,
+} from "../domain/timelineUtils";
+import { useTimelineTabs } from "../hooks/useTimelineTabs";
 import { timelineService } from "../services/timelineService";
 import { loadAppSettings, saveAppSettings } from "../services/appSettingsStorage";
 import { notifyNewPosts, sendTestNotification } from "../services/notificationService";
@@ -11,16 +18,19 @@ import { SettingsDialog, type SettingsDraft } from "./SettingsDialog";
 import { TimelineTable } from "./TimelineTable";
 
 const buildLabel = "settings-dialog-1";
-const defaultPostRetentionLimit = 1000;
-const initialTabs: TimelineTab[] = [
-  { id: "home", title: "Home", type: "home", notify: true },
-  { id: "notifications", title: "Notifications", type: "notifications", notify: true },
-];
 const initialSettings = loadAppSettings();
 
 export function App() {
-  const [tabs, setTabs] = useState<TimelineTab[]>(() => normalizeTabs(initialSettings.tabs));
-  const [activeTabId, setActiveTabId] = useState(() => initialSettings.activeTabId ?? "home");
+  const {
+    tabs,
+    tabsRef,
+    activeTabId,
+    activeTabIdRef,
+    addSearchTab: addSearchTimelineTab,
+    closeTab: closeTimelineTab,
+    switchTab: setActiveTimelineTab,
+    toggleTabNotification,
+  } = useTimelineTabs(initialSettings.tabs, initialSettings.activeTabId);
   const [postsByTab, setPostsByTab] = useState<Record<string, TimelinePost[]>>({});
   const [visiblePosts, setVisiblePosts] = useState<TimelinePost[]>([]);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
@@ -53,14 +63,10 @@ export function App() {
   const hasCompletedInitialLoadByTab = useRef(new Set<string>());
   const requestSeqByTab = useRef(new Map<string, number>());
   const postsByTabRef = useRef(postsByTab);
-  const tabsRef = useRef(tabs);
-  const activeTabIdRef = useRef(activeTabId);
   const showHomeRepliesRef = useRef(showHomeReplies);
   const postRetentionLimitRef = useRef(postRetentionLimit);
   const isAutoRefreshingRef = useRef(false);
   const profileRequestSeq = useRef(0);
-
-  const activeTab = tabs.find((tab) => tab.id === activeTabId);
 
   const selectedPost = useMemo(
     () => visiblePosts.find((post) => post.id === selectedPostId) ?? visiblePosts[0],
@@ -201,26 +207,18 @@ export function App() {
       return;
     }
 
-    const id = `search:${query}`;
-    const existingTab = tabsRef.current.find((tab) => tab.id === id);
-    if (!existingTab) {
-      const nextTabs = [...tabsRef.current, { id, title: `Search: ${query}`, type: "search" as const, query, notify: true }];
-      tabsRef.current = nextTabs;
-      setTabs(nextTabs);
-      postsByTabRef.current = { ...postsByTabRef.current, [id]: [] };
-      setPostsByTab((current) => ({ ...current, [id]: [] }));
-    }
+    const id = addSearchTimelineTab(query);
+    postsByTabRef.current = { ...postsByTabRef.current, [id]: postsByTabRef.current[id] ?? [] };
+    setPostsByTab((current) => ({ ...current, [id]: current[id] ?? [] }));
     switchTab(id);
   }
 
   function closeTab(tabId: string) {
-    const index = tabs.findIndex((tab) => tab.id === tabId);
-    const tab = tabs[index];
-    if (!tab || tab.type === "home" || tab.type === "notifications") {
+    const result = closeTimelineTab(tabId);
+    if (!result.closed) {
       return;
     }
 
-    setTabs((currentTabs) => currentTabs.filter((currentTab) => currentTab.id !== tabId));
     setPostsByTab((current) => {
       const next = { ...current };
       delete next[tabId];
@@ -231,16 +229,16 @@ export function App() {
     hasCompletedInitialLoadByTab.current.delete(tabId);
     requestSeqByTab.current.delete(tabId);
 
-    if (activeTabId === tabId) {
-      const nextTab = tabs[index - 1] ?? tabs[index + 1] ?? tabs[0];
-      switchTab(nextTab.id);
+    if (result.wasActive) {
+      const nextTab = tabsRef.current.find((tab) => tab.id === result.nextActiveTabId);
+      setSelectedPostId(null);
+      setVisiblePosts(nextTab ? getDisplayPosts(nextTab, postsByTabRef.current[nextTab.id] ?? [], showHomeRepliesRef.current) : []);
     }
   }
 
   function switchTab(tabId: string) {
     const tab = tabsRef.current.find((currentTab) => currentTab.id === tabId);
-    activeTabIdRef.current = tabId;
-    setActiveTabId(tabId);
+    setActiveTimelineTab(tabId);
     setSelectedPostId(null);
     if (tab) {
       setVisiblePosts(getDisplayPosts(tab, postsByTab[tabId] ?? [], showHomeRepliesRef.current));
@@ -248,14 +246,6 @@ export function App() {
       setVisiblePosts([]);
     }
     void refreshTab(tabId);
-  }
-
-  function toggleTabNotification(tabId: string) {
-    const nextTabs = tabsRef.current.map((tab) =>
-      tab.id === tabId ? { ...tab, notify: !tab.notify } : tab,
-    );
-    tabsRef.current = nextTabs;
-    setTabs(nextTabs);
   }
 
   function handleSelectPost(postId: string) {
@@ -404,14 +394,6 @@ export function App() {
   }, [postsByTab]);
 
   useEffect(() => {
-    tabsRef.current = tabs;
-  }, [tabs]);
-
-  useEffect(() => {
-    activeTabIdRef.current = activeTabId;
-  }, [activeTabId]);
-
-  useEffect(() => {
     showHomeRepliesRef.current = showHomeReplies;
     postRetentionLimitRef.current = postRetentionLimit;
     const tab = tabsRef.current.find((currentTab) => currentTab.id === activeTabIdRef.current);
@@ -464,8 +446,7 @@ export function App() {
 
   useEffect(() => {
     const initialTabId = tabsRef.current.some((tab) => tab.id === activeTabIdRef.current) ? activeTabIdRef.current : "home";
-    activeTabIdRef.current = initialTabId;
-    setActiveTabId(initialTabId);
+    setActiveTimelineTab(initialTabId);
     void refreshTab(initialTabId);
   }, []);
 
@@ -668,74 +649,6 @@ export function App() {
   );
 }
 
-function mergeTimelinePosts(incomingPosts: TimelinePost[], existingPosts: TimelinePost[], limit: number): TimelinePost[] {
-  const seenKeys = new Set<string>();
-  const mergedPosts = [];
-
-  for (const post of [...incomingPosts, ...existingPosts]) {
-    const keys = getPostDedupeKeys(post);
-    if (keys.some((key) => seenKeys.has(key))) {
-      continue;
-    }
-    keys.forEach((key) => seenKeys.add(key));
-    mergedPosts.push(post);
-  }
-
-  return mergedPosts
-    .sort((left, right) => new Date(right.indexedAt).getTime() - new Date(left.indexedAt).getTime())
-    .slice(0, limit);
-}
-
-function getPostDedupeKeys(post: TimelinePost): string[] {
-  return [post.id, post.uri].filter((value, index, values): value is string => (
-    typeof value === "string" && value.length > 0 && values.indexOf(value) === index
-  ));
-}
-
-function getDisplayPosts(tab: TimelineTab, posts: TimelinePost[], showHomeReplies: boolean): TimelinePost[] {
-  if (tab.type !== "search") {
-    return posts
-      .filter((post) => !post.originTabId || post.originTabId === tab.id)
-      .filter((post) => showHomeReplies || tab.type !== "home" || post.kind !== "reply")
-      .map((post) => ({ ...post, source: tab.type === "notifications" ? "Notifications" : "Home" }));
-  }
-
-  const query = normalizeSearchText(tab.query ?? "");
-  return posts
-    .filter((post) => {
-      if (post.originTabId && post.originTabId !== tab.id) {
-        return false;
-      }
-      if (post.source !== "Search") {
-        return false;
-      }
-      if (!query) {
-        return true;
-      }
-      return normalizeSearchText(post.text).includes(query);
-    })
-    .map((post) => ({ ...post, source: "Search" }));
-}
-
-function tagPostsForTab(tab: TimelineTab, posts: TimelinePost[]): TimelinePost[] {
-  return posts.map((post) => ({
-    ...post,
-    source: tab.type === "search" ? "Search" : tab.type === "notifications" ? "Notifications" : "Home",
-    originTabId: tab.id,
-  }));
-}
-
-function normalizeSearchText(value: string): string {
-  return value.trim().toLocaleLowerCase();
-}
-
-function normalizePostRetentionLimit(value: number | undefined): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return defaultPostRetentionLimit;
-  }
-  return Math.max(50, Math.min(10000, Math.floor(value)));
-}
-
 function isTextInputTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -746,25 +659,4 @@ function isTextInputTarget(target: EventTarget | null): boolean {
   }
 
   return Boolean(target.closest("input, textarea, select, button"));
-}
-
-function normalizeTabs(tabs: TimelineTab[] | undefined): TimelineTab[] {
-  const nextTabs = tabs && tabs.length > 0 ? tabs : initialTabs;
-  const hasHome = nextTabs.some((tab) => tab.id === "home");
-  const withHome = hasHome ? nextTabs : [initialTabs[0], ...nextTabs];
-  const hasNotifications = withHome.some((tab) => tab.id === "notifications");
-  const withFixedTabs = hasNotifications ? withHome : [...withHome, initialTabs[1]];
-  const seenTabIds = new Set<string>();
-  return withFixedTabs
-    .filter((tab) => {
-      if (seenTabIds.has(tab.id)) {
-        return false;
-      }
-      seenTabIds.add(tab.id);
-      return true;
-    })
-    .map((tab) => ({
-      ...tab,
-      notify: tab.notify ?? true,
-    }));
 }
