@@ -39,7 +39,7 @@ export function getDisplayPosts(
     return posts
       .filter((post) => !post.originTabId || post.originTabId === tab.id)
       .filter((post) => showHomeReplies || tab.type !== "home" || post.kind !== "reply")
-      .map((post) => ({ ...post, source: tab.type === "notifications" ? "Notifications" : "Home" }));
+      .map((post) => ({ ...post, source: getTabSourceLabel(tab) }));
   }
 
   const parsedQuery = parseSearchQuery(tab.query ?? "");
@@ -59,7 +59,7 @@ export function getDisplayPosts(
 export function tagPostsForTab(tab: TimelineTab, posts: TimelinePost[]): TimelinePost[] {
   return posts.map((post) => ({
     ...post,
-    source: tab.type === "search" ? "Search" : tab.type === "notifications" ? "Notifications" : "Home",
+    source: getTabSourceLabel(tab),
     originTabId: tab.id,
   }));
 }
@@ -174,6 +174,19 @@ function getPostDedupeKeys(post: TimelinePost): string[] {
   return [post.id, post.uri].filter((value, index, values): value is string => (
     typeof value === "string" && value.length > 0 && values.indexOf(value) === index
   ));
+}
+
+function getTabSourceLabel(tab: TimelineTab): string {
+  switch (tab.type) {
+    case "search":
+      return "Search";
+    case "notifications":
+      return "Notifications";
+    case "user":
+      return "User";
+    default:
+      return "Home";
+  }
 }
 
 function normalizeSearchText(value: string): string {

@@ -29,7 +29,22 @@ export function useTimelineTabs(
     if (!existingTab) {
       const nextTabs = [
         ...tabsRef.current,
-        { id, title: `Search: ${query}`, type: "search" as const, query, notify: true },
+        { id, title: query, type: "search" as const, query, notify: true },
+      ];
+      tabsRef.current = nextTabs;
+      setTabs(nextTabs);
+    }
+    return id;
+  }
+
+  function addUserTab(actor: string, handle: string): string {
+    const id = `user:${actor}`;
+    const existingTab = tabsRef.current.find((tab) => tab.id === id);
+    if (!existingTab) {
+      const title = `@${handle}`;
+      const nextTabs = [
+        ...tabsRef.current,
+        { id, title, type: "user" as const, actor, handle, notify: true },
       ];
       tabsRef.current = nextTabs;
       setTabs(nextTabs);
@@ -86,6 +101,7 @@ export function useTimelineTabs(
     activeTabId,
     activeTabIdRef,
     addSearchTab,
+    addUserTab,
     closeTab,
     switchTab,
     toggleTabNotification,
@@ -109,6 +125,7 @@ function normalizeTabs(tabs: TimelineTab[] | undefined): TimelineTab[] {
     })
     .map((tab) => ({
       ...tab,
+      title: tab.type === "search" ? (tab.query ?? tab.title.replace(/^Search:\s*/, "")) : tab.title,
       notify: tab.notify ?? true,
     }));
 }

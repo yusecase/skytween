@@ -12,6 +12,7 @@ SkyTween is not affiliated with, endorsed by, or officially connected to Bluesky
 - Public search tabs
 - Search operators: space-separated AND, `OR`, quoted phrases, and `min_faves:N`
 - Closable search tabs
+- User timeline tabs from profiles
 - Per-tab notification toggle
 - Automatic refresh interval selector
 - Persisted tabs, refresh interval, notification toggles, and reply visibility settings
@@ -24,6 +25,7 @@ SkyTween is not affiliated with, endorsed by, or officially connected to Bluesky
 - Post detail view with images, quote text, and counters
 - Basic text posting
 - Like and repost actions for timeline posts
+- Follow and unfollow actions from profiles
 - Saved AT Protocol session resume
 
 ## Not Yet Implemented

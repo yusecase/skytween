@@ -24,12 +24,24 @@ export class TimelineService {
     return this.client.searchPosts(query, limit);
   }
 
+  getAuthorFeed(actor: string): Promise<TimelinePost[]> {
+    return this.client.getAuthorFeed(actor);
+  }
+
   getNotifications(): Promise<TimelinePost[]> {
     return this.client.getNotifications();
   }
 
   getProfile(actor: string): Promise<UserProfile> {
     return this.client.getProfile(actor);
+  }
+
+  followProfile(did: string): Promise<string> {
+    return this.client.followProfile(did);
+  }
+
+  unfollowProfile(followUri: string): Promise<void> {
+    return this.client.unfollowProfile(followUri);
   }
 
   createPost(text: string): Promise<void> {

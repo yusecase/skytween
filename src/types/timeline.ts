@@ -42,13 +42,17 @@ export interface UserProfile {
   followsCount: number;
   postsCount: number;
   following: boolean;
+  followUri?: string;
   followedBy: boolean;
+  isSelf: boolean;
 }
 
 export interface TimelineTab {
   id: string;
   title: string;
-  type: "home" | "notifications" | "list" | "search" | "feed";
+  type: "home" | "notifications" | "list" | "search" | "feed" | "user";
   query?: string;
+  actor?: string;
+  handle?: string;
   notify: boolean;
 }

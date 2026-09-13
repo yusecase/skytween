@@ -28,6 +28,7 @@ export function App() {
     activeTabId,
     activeTabIdRef,
     addSearchTab: addSearchTimelineTab,
+    addUserTab: addUserTimelineTab,
     closeTab: closeTimelineTab,
     switchTab: setActiveTimelineTab,
     toggleTabNotification,
@@ -43,6 +44,7 @@ export function App() {
   const [profileActor, setProfileActor] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | undefined>(undefined);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [isProfileActionBusy, setIsProfileActionBusy] = useState(false);
   const [profileError, setProfileError] = useState<string | undefined>(undefined);
   const [isAuthenticated, setIsAuthenticated] = useState(timelineService.isAuthenticated);
   const [composerText, setComposerText] = useState("");
@@ -181,6 +183,43 @@ export function App() {
     setProfile(undefined);
     setProfileError(undefined);
     setIsProfileLoading(false);
+    setIsProfileActionBusy(false);
+  }
+
+  function openUserTimeline(profile: UserProfile) {
+    const id = addUserTimelineTab(profile.did, profile.handle);
+    postsByTabRef.current = { ...postsByTabRef.current, [id]: postsByTabRef.current[id] ?? [] };
+    setPostsByTab((current) => ({ ...current, [id]: current[id] ?? [] }));
+    switchTab(id);
+    closeProfile();
+  }
+
+  async function toggleProfileFollow(profile: UserProfile) {
+    if (profile.isSelf) {
+      return;
+    }
+    if (profile.following && !profile.followUri) {
+      setProfileError("フォロー解除に必要な情報を取得できませんでした。プロフィールを開き直してください");
+      return;
+    }
+
+    setIsProfileActionBusy(true);
+    setProfileError(undefined);
+    try {
+      if (profile.following) {
+        await timelineService.unfollowProfile(profile.followUri!);
+        setStatus(`@${profile.handle} のフォローを解除しました`);
+      } else {
+        await timelineService.followProfile(profile.did);
+        setStatus(`@${profile.handle} をフォローしました`);
+      }
+      const nextProfile = await timelineService.getProfile(profile.did);
+      setProfile(nextProfile);
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "フォロー操作に失敗しました");
+    } finally {
+      setIsProfileActionBusy(false);
+    }
   }
 
   function detectNewPosts(tabId: string, nextPosts: TimelinePost[]): TimelinePost[] {
@@ -194,6 +233,10 @@ export function App() {
     if (tab.type === "search") {
       const searchedPosts = await timelineService.searchPosts(getSearchApiQuery(tab.query ?? ""), 100);
       return getDisplayPosts(tab, searchedPosts, showHomeRepliesRef.current);
+    }
+    if (tab.type === "user") {
+      const actor = tab.actor ?? tab.handle;
+      return actor ? timelineService.getAuthorFeed(actor) : [];
     }
     if (tab.type === "notifications") {
       return timelineService.getNotifications();
@@ -643,7 +686,10 @@ export function App() {
           profile={profile}
           isLoading={isProfileLoading}
           error={profileError}
+          isActionBusy={isProfileActionBusy}
           onClose={closeProfile}
+          onOpenUserTimeline={openUserTimeline}
+          onToggleFollow={(profile) => void toggleProfileFollow(profile)}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import { ExternalLink, X } from "lucide-react";
+import { ExternalLink, ListPlus, UserMinus, UserPlus, X } from "lucide-react";
 import type { UserProfile } from "../types/timeline";
 
 interface ProfileDialogProps {
@@ -6,11 +6,25 @@ interface ProfileDialogProps {
   profile?: UserProfile;
   isLoading: boolean;
   error?: string;
+  isActionBusy: boolean;
   onClose: () => void;
+  onOpenUserTimeline: (profile: UserProfile) => void;
+  onToggleFollow: (profile: UserProfile) => void;
 }
 
-export function ProfileDialog({ actor, profile, isLoading, error, onClose }: ProfileDialogProps) {
+export function ProfileDialog({
+  actor,
+  profile,
+  isLoading,
+  error,
+  isActionBusy,
+  onClose,
+  onOpenUserTimeline,
+  onToggleFollow,
+}: ProfileDialogProps) {
   const profileUrl = profile ? `https://bsky.app/profile/${profile.handle}` : undefined;
+  const canOperateProfile = Boolean(profile) && !isLoading && !isActionBusy;
+  const canFollow = canOperateProfile && !profile?.isSelf;
 
   return (
     <div className="profile-backdrop" role="presentation">
@@ -69,6 +83,25 @@ export function ProfileDialog({ actor, profile, isLoading, error, onClose }: Pro
         </div>
 
         <footer className="profile-footer">
+          <button
+            className="dialog-button"
+            type="button"
+            disabled={!canOperateProfile}
+            onClick={() => profile && onOpenUserTimeline(profile)}
+          >
+            <ListPlus size={14} />
+            投稿一覧を開く
+          </button>
+          <button
+            className={profile?.following ? "dialog-button danger" : "dialog-button"}
+            type="button"
+            disabled={!canFollow}
+            title={profile?.isSelf ? "自分自身はフォロー操作できません" : undefined}
+            onClick={() => profile && onToggleFollow(profile)}
+          >
+            {profile?.following ? <UserMinus size={14} /> : <UserPlus size={14} />}
+            {profile?.following ? "フォロー解除" : "フォローする"}
+          </button>
           <button
             className="dialog-button"
             type="button"

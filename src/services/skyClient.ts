@@ -79,6 +79,22 @@ export class SkyClient {
     }));
   }
 
+  async getAuthorFeed(actor: string, limit = 50): Promise<TimelinePost[]> {
+    if (!this.agent) {
+      return [];
+    }
+
+    const response = await this.agent.app.bsky.feed.getAuthorFeed({
+      actor,
+      limit,
+      filter: "posts_no_replies",
+    });
+    return response.data.feed.map((item) => ({
+      ...mapFeedViewPost(item.post, item.reply),
+      source: "User",
+    }));
+  }
+
   async getNotifications(limit = 50): Promise<TimelinePost[]> {
     if (!this.agent) {
       return [];
@@ -95,7 +111,24 @@ export class SkyClient {
     }
 
     const response = await this.agent.app.bsky.actor.getProfile({ actor });
-    return mapProfile(response.data);
+    return mapProfile(response.data, this.agent.did);
+  }
+
+  async followProfile(did: string): Promise<string> {
+    if (!this.agent) {
+      throw new Error("フォローするにはログインしてください");
+    }
+
+    const follow = await this.agent.follow(did);
+    return follow.uri;
+  }
+
+  async unfollowProfile(followUri: string): Promise<void> {
+    if (!this.agent) {
+      throw new Error("フォロー解除するにはログインしてください");
+    }
+
+    await this.agent.deleteFollow(followUri);
   }
 
   async createPost(text: string): Promise<void> {
@@ -196,7 +229,8 @@ export class SkyClient {
   }
 }
 
-function mapProfile(profile: AppBskyActorDefs.ProfileViewDetailed): UserProfile {
+function mapProfile(profile: AppBskyActorDefs.ProfileViewDetailed, currentDid: string | undefined): UserProfile {
+  const followUri = profile.viewer?.following;
   return {
     did: profile.did,
     handle: profile.handle,
@@ -207,8 +241,10 @@ function mapProfile(profile: AppBskyActorDefs.ProfileViewDetailed): UserProfile 
     followersCount: profile.followersCount ?? 0,
     followsCount: profile.followsCount ?? 0,
     postsCount: profile.postsCount ?? 0,
-    following: Boolean(profile.viewer?.following),
+    following: Boolean(followUri),
+    followUri,
     followedBy: Boolean(profile.viewer?.followedBy),
+    isSelf: profile.did === currentDid,
   };
 }
 
