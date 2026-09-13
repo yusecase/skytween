@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, BellOff, RefreshCw, Search, Send, X } from "lucide-react";
 import {
   getDisplayPosts,
+  getSearchApiQuery,
   mergeTimelinePosts,
   normalizePostRetentionLimit,
   tagPostsForTab,
@@ -191,7 +192,7 @@ export function App() {
 
   async function fetchTabPosts(tab: TimelineTab): Promise<TimelinePost[]> {
     if (tab.type === "search") {
-      const searchedPosts = await timelineService.searchPosts(tab.query ?? "");
+      const searchedPosts = await timelineService.searchPosts(getSearchApiQuery(tab.query ?? ""), 100);
       return getDisplayPosts(tab, searchedPosts, showHomeRepliesRef.current);
     }
     if (tab.type === "notifications") {

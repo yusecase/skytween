@@ -20,8 +20,8 @@ export class TimelineService {
     return this.client.getHomeTimeline();
   }
 
-  searchPosts(query: string): Promise<TimelinePost[]> {
-    return this.client.searchPosts(query);
+  searchPosts(query: string, limit?: number): Promise<TimelinePost[]> {
+    return this.client.searchPosts(query, limit);
   }
 
   getNotifications(): Promise<TimelinePost[]> {

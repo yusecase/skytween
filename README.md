@@ -10,6 +10,7 @@ SkyTween is not affiliated with, endorsed by, or officially connected to Bluesky
 - Home timeline
 - Notifications tab for mentions, replies, likes, reposts, follows, quotes, and related account activity
 - Public search tabs
+- Search operators: space-separated AND, `OR`, quoted phrases, and `min_faves:N`
 - Closable search tabs
 - Per-tab notification toggle
 - Automatic refresh interval selector
